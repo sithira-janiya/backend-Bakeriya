@@ -59,6 +59,25 @@ export function createMemoryStore() {
       o.statusHistory = [...(o.statusHistory || []), { status, at: new Date().toISOString() }]
       orders.set(code, o)
       return { ...o }
+    },
+
+    // ---- Menu admin (add / update / remove single items) ----
+    async createMenuItem(item) {
+      const rec = { ...item, tags: item.tags || [], available: item.available !== false }
+      items.set(rec.id, rec)
+      return { ...rec }
+    },
+
+    async updateMenuItem(id, patch) {
+      const rec = items.get(id)
+      if (!rec) return null
+      const updated = { ...rec, ...patch }
+      items.set(id, updated)
+      return { ...updated }
+    },
+
+    async deleteMenuItem(id) {
+      return items.delete(id)
     }
   }
 }
