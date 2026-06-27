@@ -25,8 +25,10 @@ async function main() {
   app.use(
     cors({
       origin(origin, cb) {
-        // allow non-browser tools (no origin) and any configured origin
-        if (!origin || config.corsOrigins.includes(origin)) return cb(null, true)
+        // allow non-browser tools (no origin), any configured origin, and any
+        // localhost/127.0.0.1 port (dev: Vite may pick 5173, 5174, …)
+        const isLocalhost = origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+        if (!origin || isLocalhost || config.corsOrigins.includes(origin)) return cb(null, true)
         return cb(new Error(`Origin ${origin} not allowed by CORS`))
       }
     })
