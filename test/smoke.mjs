@@ -30,7 +30,9 @@ async function main() {
   check('health ok + memory store', health.ok && health.store === 'memory')
 
   const menu = await (await fetch(`${BASE}/api/menu`)).json()
-  check('menu returns 14 items', menu.items?.length === 14)
+  // Public menu now hides unavailable items; seed has 1 of 14 marked available:false.
+  check('menu returns available items (13 of 14)', menu.items?.length === 13)
+  check('menu hides unavailable items', menu.items?.every((i) => i.available !== false))
   check('menu item shape', menu.items?.[0]?.name?.en && typeof menu.items[0].price === 'number')
 
   const bad = await fetch(`${BASE}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) })

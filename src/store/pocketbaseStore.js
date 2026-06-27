@@ -72,19 +72,21 @@ export function createPocketbaseStore() {
   }
 
   async function ensureSchema() {
+    // PocketBase v0.23+ replaced the old `schema: [{ ..., options }]` shape with
+    // a flat `fields: [...]` array. JSON fields require an explicit `maxSize`.
     if (!(await collectionExists(ITEMS))) {
       await pb.collections.create({
         name: ITEMS,
         type: 'base',
-        schema: [
-          { name: 'extId', type: 'text', required: true, options: {} },
-          { name: 'name', type: 'json', required: true, options: {} },
-          { name: 'category', type: 'text', required: true, options: {} },
-          { name: 'price', type: 'number', required: true, options: { min: 0 } },
-          { name: 'tags', type: 'json', required: false, options: {} },
-          { name: 'description', type: 'json', required: false, options: {} },
-          { name: 'emoji', type: 'text', required: false, options: {} },
-          { name: 'available', type: 'bool', required: false, options: {} }
+        fields: [
+          { name: 'extId', type: 'text', required: true },
+          { name: 'name', type: 'json', required: true, maxSize: 2000000 },
+          { name: 'category', type: 'text', required: true },
+          { name: 'price', type: 'number', required: true, min: 0 },
+          { name: 'tags', type: 'json', required: false, maxSize: 2000000 },
+          { name: 'description', type: 'json', required: false, maxSize: 2000000 },
+          { name: 'emoji', type: 'text', required: false },
+          { name: 'available', type: 'bool', required: false }
         ],
         indexes: [`CREATE UNIQUE INDEX idx_items_extId ON ${ITEMS} (extId)`],
         // public read so the menu can be fetched; writes restricted to admin
@@ -100,19 +102,20 @@ export function createPocketbaseStore() {
       await pb.collections.create({
         name: ORDERS,
         type: 'base',
-        schema: [
-          { name: 'code', type: 'text', required: true, options: {} },
-          { name: 'customer', type: 'json', required: true, options: {} },
-          { name: 'items', type: 'json', required: true, options: {} },
-          { name: 'total', type: 'number', required: true, options: { min: 0 } },
+        fields: [
+          { name: 'code', type: 'text', required: true },
+          { name: 'customer', type: 'json', required: true, maxSize: 2000000 },
+          { name: 'items', type: 'json', required: true, maxSize: 2000000 },
+          { name: 'total', type: 'number', required: true, min: 0 },
           {
             name: 'status',
             type: 'select',
             required: true,
-            options: { maxSelect: 1, values: ['pending', 'cooking', 'ready', 'completed'] }
+            maxSelect: 1,
+            values: ['pending', 'cooking', 'ready', 'completed']
           },
-          { name: 'statusHistory', type: 'json', required: false, options: {} },
-          { name: 'placedAt', type: 'text', required: false, options: {} }
+          { name: 'statusHistory', type: 'json', required: false, maxSize: 2000000 },
+          { name: 'placedAt', type: 'text', required: false }
         ],
         indexes: [`CREATE UNIQUE INDEX idx_orders_code ON ${ORDERS} (code)`],
         // orders are written/read through the Node API (admin auth), not directly
@@ -212,6 +215,47 @@ export function createPocketbaseStore() {
       const statusHistory = [...(rec.statusHistory || []), { status, at: new Date().toISOString() }]
       const updated = await pb.collection(ORDERS).update(rec.id, { status, statusHistory })
       return toOrder(updated)
+    },
+
+    // ---- Menu admin (add / update / remove single items) ----
+    async createMenuItem(item) {
+      const rec = await pb.collection(ITEMS).create({
+        extId: item.id,
+        name: item.name,
+        category: item.category,
+        price: item.price,
+        tags: item.tags || [],
+        description: item.description,
+        emoji: item.emoji,
+        available: item.available !== false
+      })
+      return toMenuItem(rec)
+    },
+
+    async updateMenuItem(id, patch) {
+      let rec = null
+      try {
+        rec = await pb.collection(ITEMS).getFirstListItem(`extId="${id}"`)
+      } catch {
+        return null
+      }
+      const data = {}
+      for (const k of ['name', 'category', 'price', 'tags', 'description', 'emoji', 'available']) {
+        if (patch[k] !== undefined) data[k] = patch[k]
+      }
+      const updated = await pb.collection(ITEMS).update(rec.id, data)
+      return toMenuItem(updated)
+    },
+
+    async deleteMenuItem(id) {
+      let rec = null
+      try {
+        rec = await pb.collection(ITEMS).getFirstListItem(`extId="${id}"`)
+      } catch {
+        return false
+      }
+      await pb.collection(ITEMS).delete(rec.id)
+      return true
     }
   }
 }

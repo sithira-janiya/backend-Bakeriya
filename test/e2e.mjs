@@ -39,7 +39,7 @@ async function main() {
   custWs.on('message', (m) => custEvents.push(JSON.parse(m.toString())))
 
   const menu = (await (await fetch(`${BASE}/api/menu`)).json()).items
-  ok('customer loads menu', menu.length === 14)
+  ok('customer loads available menu (13 of 14)', menu.length === 13)
 
   const cart = [{ id: menu[0].id, name: menu[0].name, price: menu[0].price, qty: 3 }]
   const placeRes = await fetch(`${BASE}/api/orders`, {
