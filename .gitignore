@@ -5,3 +5,7 @@ pocketbase
 pocketbase.exe
 *.log
 .DS_Store
+node_modules/
+.env
+.pb_data/
+*.log

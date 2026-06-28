@@ -12,6 +12,9 @@ export function createMemoryStore() {
   const items = new Map()
   /** @type {Map<string, any>} keyed by order code */
   const orders = new Map()
+  /** @type {Map<string, any>} keyed by user id */
+  const users = new Map()
+  let userSeq = 0
 
   return {
     name: 'memory',
@@ -78,6 +81,43 @@ export function createMemoryStore() {
 
     async deleteMenuItem(id) {
       return items.delete(id)
+    },
+
+    // ---- Customers (auth) ----
+    async createUser(user) {
+      const id = `usr_${++userSeq}`
+      const rec = {
+        id,
+        name: user.name || '',
+        email: String(user.email).toLowerCase(),
+        passwordHash: user.passwordHash || '',
+        provider: user.provider || 'password',
+        googleId: user.googleId || '',
+        pwPin: '',
+        pwPinExpires: '',
+        createdAt: new Date().toISOString()
+      }
+      users.set(id, rec)
+      return { ...rec }
+    },
+
+    async getUserByEmail(email) {
+      const e = String(email).toLowerCase()
+      const found = [...users.values()].find((u) => u.email === e)
+      return found ? { ...found } : null
+    },
+
+    async getUserById(id) {
+      const u = users.get(id)
+      return u ? { ...u } : null
+    },
+
+    async updateUser(id, patch) {
+      const u = users.get(id)
+      if (!u) return null
+      const updated = { ...u, ...patch }
+      users.set(id, updated)
+      return { ...updated }
     }
   }
 }

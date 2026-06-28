@@ -18,6 +18,10 @@ import { menuItems as seedItems } from '../menuData.js'
 
 const ITEMS = 'items'
 const ORDERS = 'orders'
+// Our own customer table. Named `customers` (not `users`) to avoid clashing
+// with PocketBase's built-in default auth collection — we manage auth ourselves
+// (bcrypt + our JWTs), so this is a plain base collection.
+const CUSTOMERS = 'customers'
 
 function toMenuItem(rec) {
   return {
@@ -29,6 +33,20 @@ function toMenuItem(rec) {
     description: rec.description,
     emoji: rec.emoji,
     available: rec.available
+  }
+}
+
+function toUser(rec) {
+  return {
+    id: rec.id,
+    name: rec.name,
+    email: rec.email,
+    passwordHash: rec.passwordHash || '',
+    provider: rec.provider || 'password',
+    googleId: rec.googleId || '',
+    pwPin: rec.pwPin || '',
+    pwPinExpires: rec.pwPinExpires || '',
+    createdAt: rec.created
   }
 }
 
@@ -119,6 +137,29 @@ export function createPocketbaseStore() {
         ],
         indexes: [`CREATE UNIQUE INDEX idx_orders_code ON ${ORDERS} (code)`],
         // orders are written/read through the Node API (admin auth), not directly
+        listRule: null,
+        viewRule: null,
+        createRule: null,
+        updateRule: null,
+        deleteRule: null
+      })
+    }
+
+    if (!(await collectionExists(CUSTOMERS))) {
+      await pb.collections.create({
+        name: CUSTOMERS,
+        type: 'base',
+        fields: [
+          { name: 'name', type: 'text', required: false },
+          { name: 'email', type: 'text', required: true },
+          { name: 'passwordHash', type: 'text', required: false },
+          { name: 'provider', type: 'text', required: false },
+          { name: 'googleId', type: 'text', required: false },
+          { name: 'pwPin', type: 'text', required: false },
+          { name: 'pwPinExpires', type: 'text', required: false }
+        ],
+        indexes: [`CREATE UNIQUE INDEX idx_customers_email ON ${CUSTOMERS} (email)`],
+        // customer auth goes through the Node API only, never direct PB access
         listRule: null,
         viewRule: null,
         createRule: null,
@@ -256,6 +297,49 @@ export function createPocketbaseStore() {
       }
       await pb.collection(ITEMS).delete(rec.id)
       return true
+    },
+
+    // ---- Customers (auth) ----
+    async createUser(user) {
+      const rec = await pb.collection(CUSTOMERS).create({
+        name: user.name || '',
+        email: String(user.email).toLowerCase(),
+        passwordHash: user.passwordHash || '',
+        provider: user.provider || 'password',
+        googleId: user.googleId || '',
+        pwPin: '',
+        pwPinExpires: ''
+      })
+      return toUser(rec)
+    },
+
+    async getUserByEmail(email) {
+      try {
+        const rec = await pb
+          .collection(CUSTOMERS)
+          .getFirstListItem(`email="${String(email).toLowerCase().replace(/"/g, '')}"`)
+        return toUser(rec)
+      } catch {
+        return null
+      }
+    },
+
+    async getUserById(id) {
+      try {
+        const rec = await pb.collection(CUSTOMERS).getOne(id)
+        return toUser(rec)
+      } catch {
+        return null
+      }
+    },
+
+    async updateUser(id, patch) {
+      const data = {}
+      for (const k of ['name', 'email', 'passwordHash', 'provider', 'googleId', 'pwPin', 'pwPinExpires']) {
+        if (patch[k] !== undefined) data[k] = patch[k]
+      }
+      const updated = await pb.collection(CUSTOMERS).update(id, data)
+      return toUser(updated)
     }
   }
 }

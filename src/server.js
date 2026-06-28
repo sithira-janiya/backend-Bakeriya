@@ -6,7 +6,7 @@ import { initStore, getStore } from './store/index.js'
 import { attachWebSocket, clientCount } from './realtime.js'
 import { menuRouter } from './routes/menu.js'
 import { ordersRouter } from './routes/orders.js'
-import { adminRouter } from './routes/admin.js'
+import { authRouter } from './routes/auth.js'
 
 async function main() {
   const store = await initStore()
@@ -41,7 +41,7 @@ async function main() {
 
   app.use('/api/menu', menuRouter)
   app.use('/api/orders', ordersRouter)
-  app.use('/api/admin', adminRouter)
+  app.use('/api/auth', authRouter)
 
   // 404 for unknown API routes
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }))
