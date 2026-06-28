@@ -4,6 +4,7 @@ import { WebSocket } from 'ws'
 
 const PORT = 4555
 const BASE = `http://127.0.0.1:${PORT}`
+const ADMIN_PASS = 'smoke-admin-pass-123'
 let pass = 0, fail = 0
 function check(name, cond, extra = '') {
   if (cond) { pass++; console.log(`  ok  ${name}`) }
@@ -11,7 +12,7 @@ function check(name, cond, extra = '') {
 }
 
 const child = spawn('node', ['src/server.js'], {
-  env: { ...process.env, DATA_STORE: 'memory', PORT: String(PORT) },
+  env: { ...process.env, DATA_STORE: 'memory', PORT: String(PORT), ADMIN_USERNAME: 'admin', ADMIN_PASSWORD: ADMIN_PASS },
   stdio: ['ignore', 'pipe', 'pipe']
 })
 child.stdout.on('data', () => {})
@@ -35,11 +36,11 @@ async function main() {
   check('menu hides unavailable items', menu.items?.every((i) => i.available !== false))
   check('menu item shape', menu.items?.[0]?.name?.en && typeof menu.items[0].price === 'number')
 
-  const bad = await fetch(`${BASE}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) })
-  check('wrong PIN -> 401', bad.status === 401)
-  const good = await fetch(`${BASE}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '1234' }) })
-  const { token } = await good.json()
-  check('correct PIN -> token', typeof token === 'string' && token.length > 20)
+  const bad = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'wrong-password' }) })
+  check('wrong admin password -> 401', bad.status === 401)
+  const good = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: ADMIN_PASS }) })
+  const { token, role } = await good.json()
+  check('correct admin login -> token + admin role', typeof token === 'string' && token.length > 20 && role === 'admin')
 
   const adminEvents = [], anonEvents = []
   const wsAdmin = new WebSocket(`ws://127.0.0.1:${PORT}/ws`)
