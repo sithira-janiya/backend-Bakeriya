@@ -32,7 +32,7 @@ const PB_DATA_DIR = process.env.PB_DATA_DIR || path.join(repoRoot, "pb_data");
 // These defaults mirror src/config.js and must NEVER reach production.
 const INSECURE_DEFAULTS = {
   JWT_SECRET: "dev-insecure-secret-change-me",
-  ADMIN_PIN: "1234",
+  ADMIN_PASSWORD: "SamanthiM@075",
   POCKETBASE_ADMIN_EMAIL: "admin@bakerya.local",
   POCKETBASE_ADMIN_PASSWORD: "changeme-strong-password",
 };
@@ -47,11 +47,13 @@ function validateSecrets() {
   else if (e.JWT_SECRET.length < 32)
     errors.push("JWT_SECRET must be at least 32 characters");
 
-  if (!e.ADMIN_PIN) errors.push("ADMIN_PIN is not set");
-  else if (e.ADMIN_PIN === INSECURE_DEFAULTS.ADMIN_PIN)
-    errors.push("ADMIN_PIN is still the default '1234'");
-  else if (String(e.ADMIN_PIN).length < 4)
-    errors.push("ADMIN_PIN must be at least 4 characters");
+  // Admin signs in with ADMIN_USERNAME + ADMIN_PASSWORD (PIN auth was removed).
+  // The username isn't a secret (defaults to 'admin'); the password is.
+  if (!e.ADMIN_PASSWORD) errors.push("ADMIN_PASSWORD is not set");
+  else if (e.ADMIN_PASSWORD === INSECURE_DEFAULTS.ADMIN_PASSWORD)
+    errors.push("ADMIN_PASSWORD is still the insecure default baked into config.js");
+  else if (e.ADMIN_PASSWORD.length < 10)
+    errors.push("ADMIN_PASSWORD must be at least 10 characters");
 
   if (!e.POCKETBASE_ADMIN_EMAIL) errors.push("POCKETBASE_ADMIN_EMAIL is not set");
   else if (e.POCKETBASE_ADMIN_EMAIL === INSECURE_DEFAULTS.POCKETBASE_ADMIN_EMAIL)
@@ -153,7 +155,9 @@ async function main() {
     cwd: repoRoot,
     env: {
       ...process.env,
-      DATA_STORE: "pocketbase",
+      // strict: in production a DB outage must fail loudly, never silently
+      // fall back to the ephemeral in-memory store.
+      DATA_STORE: "pocketbase-strict",
       POCKETBASE_URL: PB_URL,
     },
     stdio: "inherit",

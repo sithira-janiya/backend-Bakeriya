@@ -6,6 +6,7 @@ function bool(v, fallback = false) {
 }
 
 export const config = {
+  nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 4000),
   pocketbaseUrl: process.env.POCKETBASE_URL || 'http://127.0.0.1:8090',
   pbAdminEmail: process.env.POCKETBASE_ADMIN_EMAIL || 'admin@bakerya.local',
@@ -30,3 +31,22 @@ export const config = {
 }
 
 export const ORDER_STATUSES = ['pending', 'cooking', 'ready', 'completed']
+
+// Refuse to boot in production with insecure built-in defaults. These defaults
+// are fine for local dev but would be a serious hole if shipped as-is.
+export function assertProductionSecrets() {
+  if (config.nodeEnv !== 'production') return
+  const problems = []
+  if (config.jwtSecret === 'dev-insecure-secret-change-me') {
+    problems.push('JWT_SECRET is still the insecure default')
+  }
+  if (config.jwtSecret.length < 32) {
+    problems.push('JWT_SECRET is too short (use >= 32 random chars)')
+  }
+  if (config.adminPassword === 'SamanthiM@075') {
+    problems.push('ADMIN_PASSWORD is still the built-in default')
+  }
+  if (problems.length) {
+    throw new Error(`Refusing to start in production:\n  - ${problems.join('\n  - ')}`)
+  }
+}
