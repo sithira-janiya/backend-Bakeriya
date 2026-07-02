@@ -1,7 +1,9 @@
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
-import { config } from './config.js'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import { config, assertProductionSecrets } from './config.js'
 import { initStore, getStore } from './store/index.js'
 import { attachWebSocket, clientCount } from './realtime.js'
 import { menuRouter } from './routes/menu.js'
@@ -9,6 +11,9 @@ import { ordersRouter } from './routes/orders.js'
 import { authRouter } from './routes/auth.js'
 
 async function main() {
+  // Fail fast if we'd be shipping insecure default secrets to production.
+  assertProductionSecrets()
+
   const store = await initStore()
 
   // Seed the menu on boot (idempotent upsert).
@@ -22,6 +27,24 @@ async function main() {
   }
 
   const app = express()
+
+  // Behind Render/other proxies so express-rate-limit sees the real client IP.
+  app.set('trust proxy', 1)
+
+  // Security headers (CSP disabled: this is a JSON API, not an HTML app).
+  app.use(helmet({ contentSecurityPolicy: false }))
+
+  // Global throttle: blunt protection against abuse / accidental floods.
+  app.use(
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 120,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests, please slow down.' }
+    })
+  )
+
   app.use(
     cors({
       origin(origin, cb) {
@@ -33,7 +56,17 @@ async function main() {
       }
     })
   )
-  app.use(express.json())
+  // Cap request bodies — an unbounded JSON parser is a trivial memory-DoS.
+  app.use(express.json({ limit: '100kb' }))
+
+  // Stricter limiter for auth endpoints to slow credential brute-forcing.
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, please try again later.' }
+  })
 
   app.get('/api/health', (req, res) => {
     res.json({ ok: true, store: getStore().name, wsClients: clientCount() })
@@ -41,7 +74,7 @@ async function main() {
 
   app.use('/api/menu', menuRouter)
   app.use('/api/orders', ordersRouter)
-  app.use('/api/auth', authRouter)
+  app.use('/api/auth', authLimiter, authRouter)
 
   // 404 for unknown API routes
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }))

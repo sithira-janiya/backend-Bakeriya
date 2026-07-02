@@ -155,7 +155,9 @@ async function main() {
     cwd: repoRoot,
     env: {
       ...process.env,
-      DATA_STORE: "pocketbase",
+      // strict: in production a DB outage must fail loudly, never silently
+      // fall back to the ephemeral in-memory store.
+      DATA_STORE: "pocketbase-strict",
       POCKETBASE_URL: PB_URL,
     },
     stdio: "inherit",
