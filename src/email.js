@@ -37,3 +37,22 @@ export async function sendPasswordPin(to, pin) {
   await transporter.sendMail({ from: config.smtp.from, to, subject, text })
   return { delivered: true }
 }
+
+// Sends the 6-digit email-verification code used at sign-up. Returns
+// { delivered } so callers know whether a real email went out vs the console
+// fallback (dev). Verifying the code proves the address actually exists.
+export async function sendVerificationCode(to, code) {
+  const subject = 'Verify your Bakerya email'
+  const text =
+    `Welcome to Bakerya! Your email verification code is ${code}.\n\n` +
+    `Enter it to activate your account. It expires in 15 minutes. ` +
+    `If you didn't sign up, you can ignore this email.`
+
+  if (!transporter) {
+    console.log(`[email] (no SMTP configured) Verification code for ${to}: ${code}`)
+    return { delivered: false }
+  }
+
+  await transporter.sendMail({ from: config.smtp.from, to, subject, text })
+  return { delivered: true }
+}

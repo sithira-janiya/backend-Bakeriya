@@ -42,15 +42,19 @@ async function main() {
   const { token, role } = await good.json()
   check('correct admin login -> token + admin role', typeof token === 'string' && token.length > 20 && role === 'admin')
 
-  const adminEvents = [], anonEvents = []
+  const adminEvents = [], anonEvents = [], silentEvents = []
   const wsAdmin = new WebSocket(`ws://127.0.0.1:${PORT}/ws`)
   const wsAnon = new WebSocket(`ws://127.0.0.1:${PORT}/ws`)
+  // A non-admin socket that never subscribes — must hear about NO orders.
+  const wsSilent = new WebSocket(`ws://127.0.0.1:${PORT}/ws`)
   await Promise.all([
     new Promise((res, rej) => { wsAdmin.on('open', res); wsAdmin.on('error', rej) }),
-    new Promise((res, rej) => { wsAnon.on('open', res); wsAnon.on('error', rej) })
+    new Promise((res, rej) => { wsAnon.on('open', res); wsAnon.on('error', rej) }),
+    new Promise((res, rej) => { wsSilent.on('open', res); wsSilent.on('error', rej) })
   ])
   wsAdmin.on('message', (m) => adminEvents.push(JSON.parse(m.toString())))
   wsAnon.on('message', (m) => anonEvents.push(JSON.parse(m.toString())))
+  wsSilent.on('message', (m) => silentEvents.push(JSON.parse(m.toString())))
   wsAdmin.send(JSON.stringify({ type: 'auth', token }))
   await new Promise((r) => setTimeout(r, 200))
   check('admin WS auth acknowledged', adminEvents.some((e) => e.type === 'auth:result' && e.ok))
@@ -61,6 +65,10 @@ async function main() {
   })
   const { order } = await placed.json()
   check('place order -> 201', placed.status === 201)
+
+  // Non-admin clients only receive updates for codes they explicitly follow.
+  wsAnon.send(JSON.stringify({ type: 'track', codes: [order.id] }))
+  await new Promise((r) => setTimeout(r, 100))
   check('order total computed (13.0)', order.total === 13)
   check('order has ORD code + pending', /^ORD-/.test(order.id) && order.status === 'pending')
 
@@ -96,6 +104,7 @@ async function main() {
   check('admin WS got full order:updated -> cooking', adminEvents.some((e) => e.type === 'order:updated' && e.order?.status === 'cooking'))
   check('anon WS got lite order:updated (code+status, no PII)', anonEvents.some((e) => e.type === 'order:updated' && e.code === order.id && e.status === 'cooking' && !e.order))
   check('anon WS leaks NO customer data', anonEvents.every((e) => !e.order && !e.customer))
+  check('unsubscribed WS hears NO order events', silentEvents.every((e) => e.type !== 'order:created' && e.type !== 'order:updated'))
   wsAdmin.close(); wsAnon.close()
   console.log(`\n${pass} passed, ${fail} failed`)
 }

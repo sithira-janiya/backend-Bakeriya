@@ -64,6 +64,10 @@ export function createMemoryStore() {
       return { ...o }
     },
 
+    async deleteOrder(code) {
+      return orders.delete(code)
+    },
+
     // ---- Menu admin (add / update / remove single items) ----
     async createMenuItem(item) {
       const rec = { ...item, tags: item.tags || [], available: item.available !== false }
@@ -93,6 +97,9 @@ export function createMemoryStore() {
         passwordHash: user.passwordHash || '',
         provider: user.provider || 'password',
         googleId: user.googleId || '',
+        emailVerified: user.emailVerified || false,
+        verifyPin: '',
+        verifyPinExpires: '',
         pwPin: '',
         pwPinExpires: '',
         createdAt: new Date().toISOString()

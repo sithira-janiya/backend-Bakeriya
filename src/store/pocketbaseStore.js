@@ -44,6 +44,9 @@ function toUser(rec) {
     passwordHash: rec.passwordHash || '',
     provider: rec.provider || 'password',
     googleId: rec.googleId || '',
+    emailVerified: rec.emailVerified || false,
+    verifyPin: rec.verifyPin || '',
+    verifyPinExpires: rec.verifyPinExpires || '',
     pwPin: rec.pwPin || '',
     pwPinExpires: rec.pwPinExpires || '',
     createdAt: rec.created
@@ -155,6 +158,9 @@ export function createPocketbaseStore() {
           { name: 'passwordHash', type: 'text', required: false },
           { name: 'provider', type: 'text', required: false },
           { name: 'googleId', type: 'text', required: false },
+          { name: 'emailVerified', type: 'bool', required: false },
+          { name: 'verifyPin', type: 'text', required: false },
+          { name: 'verifyPinExpires', type: 'text', required: false },
           { name: 'pwPin', type: 'text', required: false },
           { name: 'pwPinExpires', type: 'text', required: false }
         ],
@@ -258,6 +264,13 @@ export function createPocketbaseStore() {
       return toOrder(updated)
     },
 
+    async deleteOrder(code) {
+      const rec = await findOrderRecord(code)
+      if (!rec) return false
+      await pb.collection(ORDERS).delete(rec.id) // frees the row in PocketBase
+      return true
+    },
+
     // ---- Menu admin (add / update / remove single items) ----
     async createMenuItem(item) {
       const rec = await pb.collection(ITEMS).create({
@@ -307,6 +320,9 @@ export function createPocketbaseStore() {
         passwordHash: user.passwordHash || '',
         provider: user.provider || 'password',
         googleId: user.googleId || '',
+        emailVerified: user.emailVerified || false,
+        verifyPin: '',
+        verifyPinExpires: '',
         pwPin: '',
         pwPinExpires: ''
       })
@@ -335,7 +351,9 @@ export function createPocketbaseStore() {
 
     async updateUser(id, patch) {
       const data = {}
-      for (const k of ['name', 'email', 'passwordHash', 'provider', 'googleId', 'pwPin', 'pwPinExpires']) {
+      const fields = ['name', 'email', 'passwordHash', 'provider', 'googleId',
+        'emailVerified', 'verifyPin', 'verifyPinExpires', 'pwPin', 'pwPinExpires']
+      for (const k of fields) {
         if (patch[k] !== undefined) data[k] = patch[k]
       }
       const updated = await pb.collection(CUSTOMERS).update(id, data)

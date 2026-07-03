@@ -17,6 +17,14 @@ export function issueUserToken(user) {
   )
 }
 
+// Anonymous shoppers get a signed guest token tied to a random gid. The gid is
+// stamped on any order they place so the SAME browser can later unlock its own
+// order details — without an account and without relying on the client IP.
+// Long-lived on purpose: it's the device's only handle on its guest orders.
+export function issueGuestToken(gid) {
+  return jwt.sign({ role: 'guest', gid }, config.jwtSecret, { expiresIn: '180d' })
+}
+
 // Replaces the old PIN check: admin signs in with a username + password.
 export function verifyAdminCredentials(username, password) {
   return String(username) === config.adminUsername && String(password) === config.adminPassword
