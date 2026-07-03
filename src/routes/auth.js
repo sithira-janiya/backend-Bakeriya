@@ -32,8 +32,8 @@ authRouter.post('/register', async (req, res, next) => {
     const { name, email, password } = req.body || {}
     if (!name?.trim()) return res.status(400).json({ error: 'Name is required' })
     if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: 'A valid email is required' })
-    if (!password || String(password).length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' })
+    if (!password || String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
     const existing = await getStore().getUserByEmail(email)
     if (existing) return res.status(409).json({ error: 'An account with this email already exists' })
@@ -150,8 +150,8 @@ authRouter.post('/password/change', requireAuth, async (req, res, next) => {
     if (req.user.role !== 'customer') return res.status(403).json({ error: 'Not available for this account' })
     const { pin, newPassword } = req.body || {}
     if (!pin) return res.status(400).json({ error: 'PIN is required' })
-    if (!newPassword || String(newPassword).length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' })
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' })
     }
 
     const user = await getStore().getUserById(req.user.sub)

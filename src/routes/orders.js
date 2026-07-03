@@ -1,24 +1,49 @@
 import { Router } from 'express'
 import { getStore } from '../store/index.js'
-import { requireAdmin } from '../auth.js'
+import { requireAdmin, requireAuth, optionalAuth } from '../auth.js'
 import { broadcast } from '../realtime.js'
 import { buildOrder, isValidStatus } from '../util.js'
 
 export const ordersRouter = Router()
 
-// GET /api/orders?email=...   (admin lists all; email lookup is public)
-ordersRouter.get('/', async (req, res, next) => {
+const isAdmin = (req) => req.user?.role === 'admin'
+const ownsOrder = (req, order) =>
+  req.user?.role === 'customer' &&
+  req.user.email &&
+  order?.customer?.email &&
+  String(order.customer.email).toLowerCase() === String(req.user.email).toLowerCase()
+
+// Strip customer PII for callers who are neither the owner nor an admin. Keeps
+// the fields a public "track by code" page needs (status, items, total, time).
+function publicOrderView(order) {
+  return {
+    id: order.id,
+    items: order.items,
+    total: order.total,
+    status: order.status,
+    createdAt: order.createdAt,
+    statusHistory: order.statusHistory,
+    customer: {}
+  }
+}
+
+// GET /api/orders?email=...  — auth required.
+//   customer: may only look up their OWN email.
+//   admin:    email lookup for anyone, or full list when no email is given.
+ordersRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     const { email } = req.query
     if (email) {
-      const orders = await getStore().listOrdersByEmail(String(email))
+      if (!isAdmin(req) && String(email).toLowerCase() !== String(req.user.email || '').toLowerCase()) {
+        return res.status(403).json({ error: 'You can only view your own orders' })
+      }
+      const orders = await getStore().listOrdersByEmail(String(email).toLowerCase())
       return res.json({ orders })
     }
     // No email -> full list, admin only
-    return requireAdmin(req, res, async () => {
-      const orders = await getStore().listOrders()
-      res.json({ orders })
-    })
+    if (!isAdmin(req)) return res.status(403).json({ error: 'Admin access required' })
+    const orders = await getStore().listOrders()
+    res.json({ orders })
   } catch (err) {
     next(err)
   }
@@ -38,12 +63,15 @@ ordersRouter.post('/', async (req, res, next) => {
   }
 })
 
-// GET /api/orders/:code — fetch a single order (public, by its ORD code)
-ordersRouter.get('/:code', async (req, res, next) => {
+// GET /api/orders/:code — fetch a single order by its ORD code.
+// Public (anyone with the code sees status/items), but customer PII is only
+// returned to the owning customer or an admin.
+ordersRouter.get('/:code', optionalAuth, async (req, res, next) => {
   try {
     const order = await getStore().getOrderByCode(req.params.code)
     if (!order) return res.status(404).json({ error: 'Order not found' })
-    res.json({ order })
+    const full = isAdmin(req) || ownsOrder(req, order)
+    res.json({ order: full ? order : publicOrderView(order) })
   } catch (err) {
     next(err)
   }

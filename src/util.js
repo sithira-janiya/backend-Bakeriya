@@ -1,8 +1,11 @@
+import { randomBytes } from 'crypto'
 import { ORDER_STATUSES } from './config.js'
 
 export function makeOrderCode() {
   const ts = Date.now().toString(36).toUpperCase()
-  const rand = Math.random().toString(36).slice(2, 5).toUpperCase()
+  // 8 hex chars from a CSPRNG (~4 billion values) so codes can't be guessed
+  // or enumerated — the code doubles as the tracking secret for guests.
+  const rand = randomBytes(4).toString('hex').toUpperCase()
   return `ORD-${ts}-${rand}`
 }
 
@@ -15,7 +18,6 @@ export function buildOrder(body) {
   const items = Array.isArray(body?.items) ? body.items : []
 
   if (!customer.name?.trim()) return { error: 'Customer name is required' }
-  if (!customer.address?.trim()) return { error: 'Customer address is required' }
   if (!customer.email?.trim() || !EMAIL_RE.test(customer.email)) {
     return { error: 'A valid customer email is required' }
   }
@@ -40,8 +42,7 @@ export function buildOrder(body) {
       id: makeOrderCode(),
       customer: {
         name: customer.name.trim(),
-        address: customer.address.trim(),
-        email: customer.email.trim(),
+        email: customer.email.trim().toLowerCase(),
         phone: customer.phone.trim()
       },
       items: normItems,
