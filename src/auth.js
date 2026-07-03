@@ -66,3 +66,19 @@ export function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Invalid or expired token' })
   }
 }
+
+// Attaches req.user when a valid token is present, but never rejects the
+// request. Used where anonymous access is allowed but authenticated callers
+// get more (e.g. full PII on their own order vs a redacted public view).
+// An invalid/expired token is treated as anonymous rather than an error.
+export function optionalAuth(req, res, next) {
+  const token = bearerToken(req)
+  if (token) {
+    try {
+      req.user = jwt.verify(token, config.jwtSecret)
+    } catch {
+      req.user = null
+    }
+  }
+  next()
+}
