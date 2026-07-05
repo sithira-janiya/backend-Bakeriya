@@ -1,0 +1,13 @@
+node_modules
+pb_data
+.env
+*.log
+npm-debug.log*
+.git
+.gitignore
+pocketbase
+pocketbase.exe
+test
+.claude
+Dockerfile
+.dockerignore
